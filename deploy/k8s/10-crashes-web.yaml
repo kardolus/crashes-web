@@ -1,0 +1,92 @@
+# crashes-web — public NYC crash dashboard. Live passthrough to NYC Open Data
+# (Socrata h9gi-nx95); NO database. In-memory cache assumes a SINGLE replica —
+# do not scale horizontally without an external cache.
+#
+# Prereqs:
+#   kubectl create namespace crashes
+#   # OPTIONAL credential (anonymous works, just lower rate limits). NYC Open Data
+#   # API Keys are a keyId:keySecret pair used via Basic auth:
+#   kubectl -n crashes create secret generic opendata \
+#       --from-literal=OPENDATA_API_KEY_ID='<key id>' \
+#       --from-literal=OPENDATA_API_KEY_SECRET='<key secret>'
+#   docker build -t crashes-web:v1 . ; docker save crashes-web:v1 | \
+#       sudo ctr -a /run/k8s-containerd/containerd.sock -n k8s.io images import -
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: crashes-web
+  namespace: crashes
+  labels: {app: crashes-web}
+spec:
+  replicas: 1                      # in-memory cache => single replica only
+  selector:
+    matchLabels: {app: crashes-web}
+  template:
+    metadata:
+      labels: {app: crashes-web}
+    spec:
+      containers:
+        - name: crashes-web
+          image: docker.io/library/crashes-web:v1
+          imagePullPolicy: Never
+          ports:
+            - {containerPort: 8000, name: http}
+          env:
+            # Optional Socrata credential — Basic auth (keyId:keySecret). If the
+            # secret is absent the app runs anonymous (optional: true).
+            - name: OPENDATA_API_KEY_ID
+              valueFrom:
+                secretKeyRef: {name: opendata, key: OPENDATA_API_KEY_ID, optional: true}
+            - name: OPENDATA_API_KEY_SECRET
+              valueFrom:
+                secretKeyRef: {name: opendata, key: OPENDATA_API_KEY_SECRET, optional: true}
+          readinessProbe:                      # does NOT depend on Socrata
+            httpGet: {path: /ready, port: 8000}
+            initialDelaySeconds: 3
+            periodSeconds: 15
+          livenessProbe:
+            httpGet: {path: /healthz, port: 8000}
+            initialDelaySeconds: 5
+            periodSeconds: 20
+          resources:
+            requests: {cpu: 25m, memory: 80Mi}
+            limits: {memory: 256Mi}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: crashes-web
+  namespace: crashes
+  labels: {app: crashes-web}
+spec:
+  selector: {app: crashes-web}
+  ports:
+    - {name: http, port: 8000, targetPort: 8000}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: crashes-web
+  namespace: crashes
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "false"
+    # cold all-years $group can take a few seconds — keep above the app httpx timeout (12s)
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "30"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "30"
+    # public endpoint — basic per-client rate limit
+    nginx.ingress.kubernetes.io/limit-rps: "20"
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: crashes.kardol.us
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: crashes-web
+                port:
+                  number: 8000
