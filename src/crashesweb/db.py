@@ -205,7 +205,7 @@ def crashes_by_year(mode, borough):
         w, p = _where("all", mode, borough)
         # Cap at the latest *complete* year — the in-progress year is only ~half
         # populated and would render as a misleading cliff in the trend.
-        lf = available_years()["latest_full"]
+        lf = available_years()["data"]["latest_full"]
         rows = _query(f"""
             SELECT extract(year from crash_date)::int yr, count(*) crashes,
                    coalesce(sum(persons_injured),0) injured, coalesce(sum(persons_killed),0) killed
@@ -254,7 +254,7 @@ def mode_by_year(borough):
 
     def produce():
         w, p = _where("all", "all", borough)
-        lf = available_years()["latest_full"]  # drop the partial current year (see crashes_by_year)
+        lf = available_years()["data"]["latest_full"]  # drop the partial current year (see crashes_by_year)
         rows = _query(f"""
             SELECT extract(year from crash_date)::int yr,
                    coalesce(sum(ped_injured+ped_killed),0) ped,
