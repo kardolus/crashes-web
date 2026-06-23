@@ -1,16 +1,15 @@
-# crashes-web — public NYC crash dashboard. Live passthrough to NYC Open Data
-# (Socrata h9gi-nx95); NO database. In-memory cache assumes a SINGLE replica —
-# do not scale horizontally without an external cache.
+# crashes-web — public NYC crash dashboard. Reads a local Postgres+PostGIS mirror
+# of NYC Open Data (Socrata h9gi-nx95), refreshed daily by the ingester CronJob in
+# 20-crashes-data.yaml. In-memory query cache assumes a SINGLE replica — do not
+# scale horizontally without an external cache.
 #
 # Prereqs:
 #   kubectl create namespace crashes
-#   # OPTIONAL credential (anonymous works, just lower rate limits). NYC Open Data
-#   # API Keys are a keyId:keySecret pair used via Basic auth:
-#   kubectl -n crashes create secret generic opendata \
-#       --from-literal=OPENDATA_API_KEY_ID='<key id>' \
-#       --from-literal=OPENDATA_API_KEY_SECRET='<key secret>'
+#   # read-only DSN for the web (crashes_ro role; mirror in 20-crashes-data.yaml):
+#   kubectl -n crashes create secret generic crashes-db \
+#       --from-literal=CRASHES_DB_URL='postgresql://crashes_ro:<ro pw>@crashes-postgres.crashes.svc.cluster.local:5432/crashes?sslmode=disable'
 #   # image is built + pushed to GHCR (no privileged ctr import needed):
-#   docker build -t ghcr.io/kardolus/crashes-web:v2 . ; docker push ghcr.io/kardolus/crashes-web:v2
+#   docker build -t ghcr.io/kardolus/crashes-web:v4 . ; docker push ghcr.io/kardolus/crashes-web:v4
 #   kubectl -n crashes create secret docker-registry ghcr-pull \
 #       --docker-server=ghcr.io --docker-username=kardolus --docker-password="$GITHUB_API_KEY"
 ---
@@ -32,19 +31,15 @@ spec:
         - name: ghcr-pull
       containers:
         - name: crashes-web
-          image: ghcr.io/kardolus/crashes-web:v2
+          image: ghcr.io/kardolus/crashes-web:v4
           imagePullPolicy: IfNotPresent
           ports:
             - {containerPort: 8000, name: http}
           env:
-            # Optional Socrata credential — Basic auth (keyId:keySecret). If the
-            # secret is absent the app runs anonymous (optional: true).
-            - name: OPENDATA_API_KEY_ID
+            # Read-only DSN for the local Postgres mirror (crashes_ro role).
+            - name: CRASHES_DB_URL
               valueFrom:
-                secretKeyRef: {name: opendata, key: OPENDATA_API_KEY_ID, optional: true}
-            - name: OPENDATA_API_KEY_SECRET
-              valueFrom:
-                secretKeyRef: {name: opendata, key: OPENDATA_API_KEY_SECRET, optional: true}
+                secretKeyRef: {name: crashes-db, key: CRASHES_DB_URL}
           readinessProbe:                      # does NOT depend on Socrata
             httpGet: {path: /ready, port: 8000}
             initialDelaySeconds: 3

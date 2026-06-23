@@ -1,20 +1,19 @@
 """NYC Crash Map — Starlette app over the live NYC Open Data crashes API.
 
-No database: see socrata.py. Two pages — Hotspots (map + ranked table + KPIs)
+No database: see db.py. Two pages — Hotspots (map + ranked table + KPIs)
 and Patterns (Chart.js histograms) — driven by three global, deep-linkable
 filters: ?year & ?mode & ?borough.
 """
 
 import logging
 import os
-import threading
 
 import uvicorn
 from starlette.applications import Starlette
 from starlette.responses import HTMLResponse, JSONResponse, PlainTextResponse, Response
 from starlette.routing import Route
 
-from . import socrata
+from . import db
 from .ui import page, FAVICON_SVG, CHARTJS, LEAFLET_JS, LEAFLET_CSS
 
 
@@ -23,16 +22,16 @@ def _JSON(env):
 
 
 def _filters(r) -> dict:
-    info = socrata.available_years()["data"]
+    info = db.available_years()["data"]
     ymax = info.get("max")
     raw_year = r.query_params.get("year")
-    year = socrata.valid_year(raw_year, ymax)
+    year = db.valid_year(raw_year, ymax)
     if raw_year is None:
         year = str(info.get("latest_full"))
     return {
         "year": year,
-        "mode": socrata.valid_mode(r.query_params.get("mode")),
-        "borough": socrata.valid_borough(r.query_params.get("borough")),
+        "mode": db.valid_mode(r.query_params.get("mode")),
+        "borough": db.valid_borough(r.query_params.get("borough")),
         "years": info.get("years", []),
         "latest_full": info.get("latest_full"),
     }
@@ -45,45 +44,45 @@ def _ymb(r):
 
 # ───────────────────────── JSON API ─────────────────────────
 async def api_summary(r):
-    return _JSON(socrata.summary_kpis(*_ymb(r)))
+    return _JSON(db.summary_kpis(*_ymb(r)))
 
 
 async def api_hotspots(r):
-    return _JSON(socrata.dangerous_intersections(*_ymb(r)))
+    return _JSON(db.dangerous_intersections(*_ymb(r)))
 
 
 async def api_by_year(r):
     _, m, b = _ymb(r)
-    return _JSON(socrata.crashes_by_year(m, b))
+    return _JSON(db.crashes_by_year(m, b))
 
 
 async def api_by_hour(r):
-    return _JSON(socrata.by_hour(*_ymb(r)))
+    return _JSON(db.by_hour(*_ymb(r)))
 
 
 async def api_by_weekday(r):
-    return _JSON(socrata.by_weekday(*_ymb(r)))
+    return _JSON(db.by_weekday(*_ymb(r)))
 
 
 async def api_by_month(r):
-    return _JSON(socrata.by_month(*_ymb(r)))
+    return _JSON(db.by_month(*_ymb(r)))
 
 
 async def api_mode_by_year(r):
     _, _m, b = _ymb(r)
-    return _JSON(socrata.mode_by_year(b))
+    return _JSON(db.mode_by_year(b))
 
 
 async def api_factors(r):
-    return _JSON(socrata.top_factors(*_ymb(r)))
+    return _JSON(db.top_factors(*_ymb(r)))
 
 
 async def api_years(r):
-    return _JSON(socrata.available_years())
+    return _JSON(db.available_years())
 
 
 async def api_freshness(r):
-    return _JSON(socrata.freshness())
+    return _JSON(db.freshness())
 
 
 async def favicon(r):
@@ -95,16 +94,20 @@ async def healthz(r):            # liveness — process is up
     return PlainTextResponse("ok")
 
 
-async def ready(r):              # readiness — can serve HTTP; does NOT depend on Socrata
-    return PlainTextResponse("ready")
+async def ready(r):              # readiness — can we reach our own Postgres mirror?
+    try:
+        db.ping()
+        return PlainTextResponse("ready")
+    except Exception:
+        return PlainTextResponse("db unavailable", status_code=503)
 
 
-async def sourcez(r):            # upstream/source status, reported separately
-    fresh = socrata.freshness()
+async def sourcez(r):            # data freshness + cache status
+    fresh = db.freshness()
     return JSONResponse({
         "data_through": fresh["data"].get("latest", ""),
         "source_error": fresh["meta"].get("source_error"),
-        "cache": socrata.cache_stats(),
+        "cache": db.cache_stats(),
     })
 
 
@@ -376,8 +379,6 @@ def main():
         level=os.environ.get("LOG_LEVEL", "INFO"),
         format="%(asctime)s %(levelname)s %(name)s %(message)s",
     )
-    # Warm the default view in the background so the first visitor isn't cold.
-    threading.Thread(target=socrata.seed_cache, daemon=True).start()
     uvicorn.run(app, host="0.0.0.0", port=8000)
 
 

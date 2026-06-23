@@ -1,0 +1,75 @@
+# crashes data layer: a no-selector Service+Endpoints pointing at the host-docker
+# Postgres+PostGIS box (10.0.0.120:5435), plus the daily ingester CronJob.
+#
+# Host DB (created on forge, not in k8s — same stateless pattern as bart/citibike):
+#   docker run -d --name crashes-postgres --restart unless-stopped \
+#     -e POSTGRES_DB=crashes -e POSTGRES_USER=crashes -e POSTGRES_PASSWORD=<pw> \
+#     -v crashes-pgdata:/var/lib/postgresql/data -p 5435:5432 postgis/postgis:16-3.4
+#   roles: crashes (rw, ingester) + crashes_ro (web). pw in ~/.crashes-pg-pw / ~/.crashes-pg-ro-pw
+#
+# Prereq secrets:
+#   kubectl -n crashes create secret generic crashes-db-rw \
+#     --from-literal=CRASHES_DB_URL='postgresql://crashes:<pw>@crashes-postgres.crashes.svc.cluster.local:5432/crashes?sslmode=disable'
+#   kubectl -n crashes create secret generic opendata \
+#     --from-literal=OPENDATA_API_KEY_ID='<id>' --from-literal=OPENDATA_API_KEY_SECRET='<secret>'
+#   # one-time full backfill:
+#   kubectl -n crashes create job crashes-backfill --from=cronjob/crashes-ingest -- python -m crashesweb.ingest backfill
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: crashes-postgres
+  namespace: crashes
+spec:
+  ports:
+    - {name: pg, port: 5432, targetPort: 5435}
+---
+apiVersion: v1
+kind: Endpoints
+metadata:
+  name: crashes-postgres
+  namespace: crashes
+subsets:
+  - addresses:
+      - {ip: 10.0.0.120}
+    ports:
+      - {name: pg, port: 5435}
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: crashes-ingest
+  namespace: crashes
+spec:
+  schedule: "20 9 * * *"          # 09:20 UTC ≈ 05:20 ET daily (after the dataset's daily refresh)
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  startingDeadlineSeconds: 3600
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 1800
+      template:
+        spec:
+          restartPolicy: Never
+          imagePullSecrets:
+            - name: ghcr-pull
+          containers:
+            - name: ingest
+              image: ghcr.io/kardolus/crashes-web:v4
+              imagePullPolicy: IfNotPresent
+              command: ["python", "-m", "crashesweb.ingest", "daily"]
+              env:
+                - name: CRASHES_DB_URL
+                  valueFrom:
+                    secretKeyRef: {name: crashes-db-rw, key: CRASHES_DB_URL}
+                - name: OPENDATA_API_KEY_ID
+                  valueFrom:
+                    secretKeyRef: {name: opendata, key: OPENDATA_API_KEY_ID, optional: true}
+                - name: OPENDATA_API_KEY_SECRET
+                  valueFrom:
+                    secretKeyRef: {name: opendata, key: OPENDATA_API_KEY_SECRET, optional: true}
+              resources:
+                requests: {cpu: 100m, memory: 256Mi}
+                limits: {memory: 1Gi}
