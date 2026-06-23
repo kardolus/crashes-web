@@ -57,7 +57,7 @@ spec:
             - name: ghcr-pull
           containers:
             - name: ingest
-              image: ghcr.io/kardolus/crashes-web:v4
+              image: ghcr.io/kardolus/crashes-web:v5
               imagePullPolicy: IfNotPresent
               command: ["python", "-m", "crashesweb.ingest", "daily"]
               env:

@@ -129,7 +129,7 @@ _HOTSPOTS_BODY = """
       <span class="dot good"></span>lower
       · size = total injured</span></div>
   <div id="map"></div>
-  <p class="note">Locations are crash clusters grouped by rounded coordinates (~11&nbsp;m), min. 3 crashes — “near” the named streets, not verified intersections. “Lower” (green) means least dangerous <em>of the dangerous list</em>, not safe.</p>
+  <p class="note">Locations are crash clusters (~30&nbsp;m grid), labeled by their most common cross-streets. “Lower” (green) means least dangerous <em>of the dangerous list</em>, not safe.</p>
 </div>
 <div class="card">
   <div class="card-head"><h2>Ranked locations</h2>

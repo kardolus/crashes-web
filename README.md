@@ -8,36 +8,38 @@ ranked table, and pattern charts — filterable by **year**, **road user**
 It's the live successor to the CSV/folium accident notebooks in
 [`opendata`](../opendata) — same source data, but always current and citywide.
 
-## Architecture — cached live passthrough (no database)
+## Architecture — local Postgres+PostGIS mirror
 
-The app is a **cached live [Socrata](https://dev.socrata.com/) dashboard** for
-low-traffic homelab use. It reads the NYC Open Data **"Motor Vehicle Collisions –
-Crashes"** dataset (`h9gi-nx95`, ~2.27M rows) directly and lets the SoQL engine do
-the aggregation server-side; nothing is stored locally. It avoids an ingester/DB at
-the cost of cold-cache latency, source dependency, coordinate-rounded (not true)
-intersection clustering, and limited reproducibility.
+The app serves from a **local Postgres+PostGIS mirror** of the NYC Open Data
+**"Motor Vehicle Collisions – Crashes"** dataset (`h9gi-nx95`, ~2.27M rows), refreshed
+daily by an ingester CronJob. Every page is a fast, indexed SQL aggregation — all-years
+hotspots run in ~0.1 s (vs ~4.7 s when this hit the Socrata API live). The mirror also
+buys **stable intersection clustering** (so a corner's crashes aggregate instead of
+fragmenting), reproducibility, and independence from Socrata uptime/rate-limits.
 
 ```
-Browser ──> crashes-web (Starlette) ──cached HTTP──> NYC Open Data (Socrata h9gi-nx95)
+NYC Open Data (Socrata h9gi-nx95)
+      │  daily ingest (backfill + delta) + PostGIS clustering
+      ▼
+crashes-postgres  ──read-only SQL──>  crashes-web (Starlette)  ──>  Browser
 ```
 
-- **`socrata.py`** — HTTP client + query functions. Each query is wrapped in an
-  in-process TTL cache with **per-key request coalescing** (concurrent misses for one
-  key collapse to a single upstream call), a **global semaphore** (≤3 concurrent
-  outbound calls), and **stale-on-error** (serve the last good value if Socrata
-  blips). The cache lock is never held across the HTTP call. Returns an envelope
-  `{"data": ..., "meta": {"stale": bool, "source_error": str|None}}`.
+- **`ingest.py`** — `python -m crashesweb.ingest {backfill|daily}`. Keyset-paginated
+  pull from Socrata → upsert into `crashes`. Then assigns each geocoded crash a stable
+  `cluster_id` via a **fixed ~30 m grid** (EPSG:2263) and rebuilds the `clusters` table
+  (centroid + representative cross-street label). A fixed grid is chaining-proof —
+  distance-DBSCAN cascaded crashes along busy corridors into one 27k-crash blob — and a
+  30 m cell is wide enough that one corner's scatter lands together. Uses `socrata.py`.
+- **`db.py`** — read-only (`crashes_ro`) psycopg2 layer; same `{data, meta}` envelopes
+  the frontend expects. Hotspots = `GROUP BY cluster_id` over `crashes JOIN clusters`
+  with the year/mode/borough filters, ranked by severity (`killed*100 + injured`).
+- **`socrata.py`** — Socrata HTTP client + validators. Now used **only by the ingester**.
 - **`server.py`** — Starlette routes, both page bodies (inline JS), health endpoints.
 - **`ui.py`** — page shell: fonts, flightdeck CSS, dark mode, the three-filter nav.
 
-**Single replica only** — the cache is in-process. Scaling horizontally would double
-upstream traffic and split the cache; add Redis/a file cache first.
-
-### Migration triggers → build a Postgres/PostGIS mirror if:
-- cold all-years hotspots regularly exceeds ~5–8 s;
-- Socrata 429/5xx occur in normal use;
-- you need a 2nd replica;
-- you need real intersection identity, borough polygons, or multi-column factor counts.
+**Single replica only** — the query cache is in-process; scaling horizontally would
+split it (add Redis first). The DB is host-docker `crashes-postgres` (`:5435`,
+postgis/postgis:16), reached via a no-selector Service+Endpoints, in the nightly pg_dump.
 
 ## Filters (deep-linkable)
 
@@ -49,8 +51,8 @@ preserved across navigation and fanned into every `/api/*` call.
 ## Endpoints
 
 `/` Hotspots (map + ranked table + KPIs) · `/patterns` (charts) ·
-`/healthz` (liveness) · `/ready` (readiness — independent of Socrata) ·
-`/sourcez` (upstream freshness + cache stats) · `/api/{summary,hotspots,by_year,
+`/healthz` (liveness) · `/ready` (readiness — checks the Postgres mirror) ·
+`/sourcez` (data freshness + cache stats) · `/api/{summary,hotspots,by_year,
 by_hour,by_weekday,by_month,mode_by_year,factors,years,freshness}`.
 
 ## Data notes (verified against the live SoQL engine)

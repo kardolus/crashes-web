@@ -9,7 +9,7 @@
 #   kubectl -n crashes create secret generic crashes-db \
 #       --from-literal=CRASHES_DB_URL='postgresql://crashes_ro:<ro pw>@crashes-postgres.crashes.svc.cluster.local:5432/crashes?sslmode=disable'
 #   # image is built + pushed to GHCR (no privileged ctr import needed):
-#   docker build -t ghcr.io/kardolus/crashes-web:v4 . ; docker push ghcr.io/kardolus/crashes-web:v4
+#   docker build -t ghcr.io/kardolus/crashes-web:v5 . ; docker push ghcr.io/kardolus/crashes-web:v5
 #   kubectl -n crashes create secret docker-registry ghcr-pull \
 #       --docker-server=ghcr.io --docker-username=kardolus --docker-password="$GITHUB_API_KEY"
 ---
@@ -31,7 +31,7 @@ spec:
         - name: ghcr-pull
       containers:
         - name: crashes-web
-          image: ghcr.io/kardolus/crashes-web:v4
+          image: ghcr.io/kardolus/crashes-web:v5
           imagePullPolicy: IfNotPresent
           ports:
             - {containerPort: 8000, name: http}
