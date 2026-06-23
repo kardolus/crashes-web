@@ -9,8 +9,10 @@
 #   kubectl -n crashes create secret generic opendata \
 #       --from-literal=OPENDATA_API_KEY_ID='<key id>' \
 #       --from-literal=OPENDATA_API_KEY_SECRET='<key secret>'
-#   docker build -t crashes-web:v1 . ; docker save crashes-web:v1 | \
-#       sudo ctr -a /run/k8s-containerd/containerd.sock -n k8s.io images import -
+#   # image is built + pushed to GHCR (no privileged ctr import needed):
+#   docker build -t ghcr.io/kardolus/crashes-web:v1 . ; docker push ghcr.io/kardolus/crashes-web:v1
+#   kubectl -n crashes create secret docker-registry ghcr-pull \
+#       --docker-server=ghcr.io --docker-username=kardolus --docker-password="$GITHUB_API_KEY"
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -26,10 +28,12 @@ spec:
     metadata:
       labels: {app: crashes-web}
     spec:
+      imagePullSecrets:
+        - name: ghcr-pull
       containers:
         - name: crashes-web
-          image: docker.io/library/crashes-web:v1
-          imagePullPolicy: Never
+          image: ghcr.io/kardolus/crashes-web:v1
+          imagePullPolicy: IfNotPresent
           ports:
             - {containerPort: 8000, name: http}
           env:
