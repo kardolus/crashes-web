@@ -10,7 +10,7 @@
 #       --from-literal=OPENDATA_API_KEY_ID='<key id>' \
 #       --from-literal=OPENDATA_API_KEY_SECRET='<key secret>'
 #   # image is built + pushed to GHCR (no privileged ctr import needed):
-#   docker build -t ghcr.io/kardolus/crashes-web:v1 . ; docker push ghcr.io/kardolus/crashes-web:v1
+#   docker build -t ghcr.io/kardolus/crashes-web:v2 . ; docker push ghcr.io/kardolus/crashes-web:v2
 #   kubectl -n crashes create secret docker-registry ghcr-pull \
 #       --docker-server=ghcr.io --docker-username=kardolus --docker-password="$GITHUB_API_KEY"
 ---
@@ -32,7 +32,7 @@ spec:
         - name: ghcr-pull
       containers:
         - name: crashes-web
-          image: ghcr.io/kardolus/crashes-web:v1
+          image: ghcr.io/kardolus/crashes-web:v2
           imagePullPolicy: IfNotPresent
           ports:
             - {containerPort: 8000, name: http}

@@ -196,12 +196,8 @@ $('rows').addEventListener('mouseover', e => { const tr=e.target.closest('tr'); 
 $('rows').addEventListener('mouseout', e => { const tr=e.target.closest('tr'); const mk=tr&&markers.get(tr.dataset.i);
   if (mk){ mk.setStyle({weight: data[tr.dataset.i].killed>0?3:2, fillOpacity:.85}); } });
 
-function tiles(){
-  const url = isDark()
-    ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
-    : 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png';
-  return L.tileLayer(url, {attribution:'© OpenStreetMap, © CARTO', maxZoom:19});
-}
+const tileU = () => 'https://{s}.basemaps.cartocdn.com/' + (isDark()?'dark_all':'light_all') + '/{z}/{x}/{y}{r}.png';
+let tileLayer;
 async function load(){
   api('/api/summary').then(res => {
     const s = res.data; if (!s || s.crashes==null) return;
@@ -216,7 +212,9 @@ async function load(){
   data = res.data || [];
   const pts = data.filter(x => x.lat && x.lon);
   if (!map){
-    map = L.map('map'); tiles().addTo(map);
+    map = L.map('map');
+    tileLayer = L.tileLayer(tileU(), {attribution:'© OpenStreetMap, © CARTO', maxZoom:19}).addTo(map);
+    window.addEventListener('themechange', () => tileLayer.setUrl(tileU()));
     if (pts.length) map.fitBounds(pts.map(x => [x.lat, x.lon]), {padding:[30,30]});
     else map.setView([40.7128, -74.0060], 11);
     setTimeout(() => map.invalidateSize(), 0);

@@ -110,6 +110,7 @@ def page(title: str, active: str, body: str, filters: dict, head_extra: str = ""
   function toggleDark(){{
     document.documentElement.classList.toggle('dark');
     localStorage.setItem('theme', document.documentElement.classList.contains('dark') ? 'dark' : 'light');
+    window.dispatchEvent(new Event('themechange'));
   }}
 </script>
 {_common_js(filters)}
