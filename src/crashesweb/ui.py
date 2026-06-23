@@ -85,8 +85,8 @@ function withP(u){{ return u + (u.includes('?')?'&':'?') + new URLSearchParams(P
 async function api(u){{
   const r = await fetch(withP(u)); const j = await r.json();
   if (j.meta && j.meta.source_error) showBanner(j.meta.stale
-    ? 'NYC Open Data is unreachable — showing the last cached numbers.'
-    : 'NYC Open Data is currently unavailable. Try again shortly.');
+    ? 'Showing the last cached numbers — a refresh is pending.'
+    : 'Some data couldn’t be loaded just now. Try again shortly.');
   return j;
 }}
 function showBanner(msg){{ const b=document.getElementById('banner'); if(b){{ b.textContent=msg; b.classList.add('show'); }} }}

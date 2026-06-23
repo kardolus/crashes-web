@@ -204,12 +204,12 @@ def crashes_by_year(mode, borough):
     def produce():
         w, p = _where("all", mode, borough)
         rows = _query(f"""
-            SELECT extract(year from crash_date)::int year, count(*) crashes,
+            SELECT extract(year from crash_date)::int yr, count(*) crashes,
                    coalesce(sum(persons_injured),0) injured, coalesce(sum(persons_killed),0) killed
             FROM crashes WHERE {w} GROUP BY 1 ORDER BY 1""", p)
-        return [{"year": _i(r["year"]), "crashes": _i(r["crashes"]),
+        return [{"year": _i(r["yr"]), "crashes": _i(r["crashes"]),
                  "injured": _i(r["injured"]), "killed": _i(r["killed"])}
-                for r in rows if _i(r["year"]) >= MIN_YEAR]
+                for r in rows if _i(r["yr"]) >= MIN_YEAR]
     return _q(key, 6 * 3600, produce, [])
 
 
@@ -252,13 +252,13 @@ def mode_by_year(borough):
     def produce():
         w, p = _where("all", "all", borough)
         rows = _query(f"""
-            SELECT extract(year from crash_date)::int year,
+            SELECT extract(year from crash_date)::int yr,
                    coalesce(sum(ped_injured+ped_killed),0) ped,
                    coalesce(sum(cyc_injured+cyc_killed),0) cyc,
                    coalesce(sum(mot_injured+mot_killed),0) mot
             FROM crashes WHERE {w} GROUP BY 1 ORDER BY 1""", p)
-        return [{"year": _i(r["year"]), "ped": _i(r["ped"]), "cyc": _i(r["cyc"]), "mot": _i(r["mot"])}
-                for r in rows if _i(r["year"]) >= MIN_YEAR]
+        return [{"year": _i(r["yr"]), "ped": _i(r["ped"]), "cyc": _i(r["cyc"]), "mot": _i(r["mot"])}
+                for r in rows if _i(r["yr"]) >= MIN_YEAR]
     return _q(key, 6 * 3600, produce, [])
 
 
