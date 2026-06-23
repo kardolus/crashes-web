@@ -7,6 +7,7 @@ filters: ?year & ?mode & ?borough.
 
 import logging
 import os
+from pathlib import Path
 
 import uvicorn
 from starlette.applications import Starlette
@@ -87,6 +88,14 @@ async def api_freshness(r):
 
 async def favicon(r):
     return Response(FAVICON_SVG, media_type="image/svg+xml",
+                    headers={"Cache-Control": "public, max-age=86400"})
+
+
+_OG = (Path(__file__).parent / "static" / "og.png").read_bytes()
+
+
+async def og(r):
+    return Response(_OG, media_type="image/png",
                     headers={"Cache-Control": "public, max-age=86400"})
 
 
@@ -358,6 +367,7 @@ app = Starlette(routes=[
     Route("/patterns", patterns_page),
     Route("/favicon.svg", favicon),
     Route("/favicon.ico", favicon),
+    Route("/og.png", og),
     Route("/healthz", healthz),
     Route("/ready", ready),
     Route("/sourcez", sourcez),

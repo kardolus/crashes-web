@@ -103,6 +103,18 @@ def page(title: str, active: str, body: str, filters: dict, head_extra: str = ""
 <meta name="theme-color" content="#0d1117" media="(prefers-color-scheme: dark)">
 <title>{title} · NYC Crash Map</title>
 <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<meta name="description" content="A city-wide map of New York's most dangerous intersections, built live from the city's open crash data — filter by year and by pedestrian, cyclist, or motorist.">
+<meta property="og:title" content="NYC Crash Map">
+<meta property="og:description" content="The city's most dangerous intersections — filter by year and by pedestrian, cyclist, or motorist.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://crashes.kardol.us">
+<meta property="og:image" content="https://crashes.kardol.us/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="NYC Crash Map">
+<meta name="twitter:description" content="The city's most dangerous intersections — filter by year and by pedestrian, cyclist, or motorist.">
+<meta name="twitter:image" content="https://crashes.kardol.us/og.png">
 {_FONTS}
 <style>{_CSS}</style>
 <script>
