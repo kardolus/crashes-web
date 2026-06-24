@@ -105,6 +105,19 @@ td:last-child,th:last-child{white-space:nowrap}
 .section{font-family:var(--font-ui);font-size:12px;text-transform:uppercase;letter-spacing:.06em;
   color:var(--meta);font-weight:600;margin:28px 0 10px;border-top:1px solid var(--border);padding-top:20px}
 
+/* Phones (<=600px): desktop is untouched — this only stops the page from
+   scrolling sideways (the minmax(360px) chart grid) and trims the ranked table. */
+@media(max-width:600px){
+  .grid2{grid-template-columns:1fr}
+  table{font-size:13px}
+  th,td{padding:6px 7px}
+  td:first-child{white-space:normal;overflow-wrap:anywhere}
+  /* Severity -> dot only; keep the label for screen readers */
+  th:last-child,td:last-child{text-align:center;padding-left:4px;padding-right:4px}
+  td:last-child .dot{margin-right:0}
+  .sev-txt{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+}
+
 @media(prefers-reduced-motion:reduce){
   *{transition:none!important;animation:none!important}
   .kpi:hover{transform:none}

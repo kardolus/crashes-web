@@ -187,7 +187,7 @@ function renderTable(){
     `<tr data-i="${i}">
        <td>${x.label}</td><td class="num">${x.crashes}</td>
        <td class="num">${x.injured}</td><td class="num">${x.killed}</td>
-       <td><span class="dot ${sevClass(x)}"></span>${sevLabel(x)}</td>
+       <td><span class="dot ${sevClass(x)}"></span><span class="sev-txt">${sevLabel(x)}</span></td>
      </tr>`).join('');
   document.querySelectorAll('th.sortable').forEach(th => {
     const on = th.dataset.key===sort.key;
