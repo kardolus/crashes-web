@@ -118,7 +118,7 @@ def page(title: str, active: str, body: str, filters: dict, head_extra: str = ""
 {_FONTS}
 <style>{_CSS}</style>
 <script>
-  if (localStorage.getItem('theme') === 'dark') document.documentElement.classList.add('dark');
+  var _t = localStorage.getItem('theme'); document.documentElement.classList.toggle('dark', _t ? _t === 'dark' : (window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches));
   function toggleDark(){{
     document.documentElement.classList.toggle('dark');
     localStorage.setItem('theme', document.documentElement.classList.contains('dark') ? 'dark' : 'light');
