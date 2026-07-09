@@ -122,3 +122,9 @@ td:last-child,th:last-child{white-space:nowrap}
   *{transition:none!important;animation:none!important}
   .kpi:hover{transform:none}
 }
+
+/* universal "kardol.us homelab" footer (matches bikes.kardol.us) */
+.homelab-foot{color:var(--meta);font-size:12px;margin:36px 0 8px;padding:16px 0;font-family:var(--font-mono);text-align:center}
+.homelab-foot a{color:var(--accent);text-decoration:none}
+.homelab-foot a:hover{text-decoration:underline}
+.homelab-foot .foot-mark{color:var(--accent);vertical-align:-2px;margin-right:6px}

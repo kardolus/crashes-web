@@ -133,5 +133,6 @@ def page(title: str, active: str, body: str, filters: dict, head_extra: str = ""
 {_nav(active, filters)}
 <div id="banner" class="banner" role="alert"></div>
 {body}
+<footer class="homelab-foot"><svg class="foot-mark" viewBox="0 0 24 24" width="13" height="13" aria-hidden="true"><path fill="currentColor" d="M12 1.6l1.9 8.5 8.5 1.9-8.5 1.9-1.9 8.5-1.9-8.5-8.5-1.9 8.5-1.9z"/></svg>unofficial · data from NYC Open Data · <a href="https://kardol.us">kardol.us</a> homelab</footer>
 </body>
 </html>"""
