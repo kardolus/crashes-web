@@ -114,7 +114,13 @@ def _ttl(year) -> float:
 
 
 # ───────────────────────── HTTP client + auth ─────────────────────────
-_TIMEOUT = float(os.environ.get("SOCRATA_TIMEOUT", "12"))
+# A 50,000-row page can take well over 12 s when NYC Open Data is slow (crime-web's weekly
+# re-pull died on read timeouts 2026-10-05/12), so the read timeout is generous and every page is
+# retried — keyset paging makes a repeated page harmless. Ingester-only: the web reads Postgres.
+_TIMEOUT = float(os.environ.get("SOCRATA_TIMEOUT", "120"))
+_ATTEMPTS = int(os.environ.get("SOCRATA_ATTEMPTS", "5"))
+_BACKOFF = (5, 15, 45, 90)          # seconds before attempts 2..5
+_RETRYABLE = {429, 500, 502, 503, 504}
 
 
 def _auth_kwargs() -> dict:
@@ -153,13 +159,29 @@ def _get(**params) -> list[dict]:
     """One SoQL GET. Numbers come back as strings — callers normalize."""
     params.setdefault("$limit", 50000)
     t0 = time.monotonic()
-    try:
-        r = _client.get(RESOURCE, params=params)
-        r.raise_for_status()
-        rows = r.json()
-    except (httpx.HTTPError, ValueError) as e:
-        log.warning("socrata error (%.2fs): %s", time.monotonic() - t0, e)
-        raise SocrataError(str(e)) from e
+    last: Exception | None = None
+    for attempt in range(_ATTEMPTS):
+        if attempt:
+            pause = _BACKOFF[min(attempt - 1, len(_BACKOFF) - 1)]
+            log.warning("socrata: attempt %d/%d after %s; retrying in %ds", attempt + 1, _ATTEMPTS,
+                        type(last).__name__, pause)
+            time.sleep(pause)
+        try:
+            r = _client.get(RESOURCE, params=params)
+            if r.status_code in _RETRYABLE:
+                last = httpx.HTTPStatusError(f"HTTP {r.status_code}", request=r.request, response=r)
+                continue
+            r.raise_for_status()
+            rows = r.json()
+            break
+        except (httpx.TimeoutException, httpx.TransportError) as e:
+            last = e
+        except (httpx.HTTPError, ValueError) as e:
+            log.warning("socrata error (%.2fs): %s", time.monotonic() - t0, e)
+            raise SocrataError(str(e)) from e
+    else:
+        log.warning("socrata error (%.2fs): %s after %d attempts", time.monotonic() - t0, last, _ATTEMPTS)
+        raise SocrataError(f"{last} (after {_ATTEMPTS} attempts)") from last
     log.info("socrata ok %.2fs rows=%d where=%s", time.monotonic() - t0,
              len(rows), params.get("$where", "")[:80])
     return rows
