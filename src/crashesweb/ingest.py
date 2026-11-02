@@ -62,10 +62,10 @@ def _coord(v):
 
 
 def _row(r: dict):
-    cid = r.get("collision_id")
-    try:
-        cid = int(cid)
-    except (TypeError, ValueError):
+    # Text since 2026-10-28: NYC Open Data republished the dataset with a 32-hex
+    # hash per crash (was an integer). Keep it opaque; never parse it.
+    cid = (r.get("collision_id") or "").strip()
+    if not cid:
         return None
     date = (r.get("crash_date") or "")[:10]
     if len(date) != 10:
@@ -113,18 +113,24 @@ def _upsert(cur, rows):
 
 
 def _pages(where_extra=None):
-    """Keyset pagination by collision_id (cheap; avoids deep $offset)."""
-    last = -1
+    """Keyset pagination by collision_id (cheap; avoids deep $offset). The id is
+    text, so the keyset is lexical — the same trick crime-web uses for cmplnt_num."""
+    last = None
     while True:
-        where = f"collision_id > {last}"
+        clauses = []
+        if last is not None:
+            clauses.append(f"collision_id > '{last}'")
         if where_extra:
-            where += f" AND {where_extra}"
-        rows = socrata._get(**{"$select": SELECT, "$where": where,
-                               "$order": "collision_id", "$limit": PAGE})
+            clauses.append(where_extra)
+        where = " AND ".join(clauses) or None
+        params = {"$select": SELECT, "$order": "collision_id", "$limit": PAGE}
+        if where:
+            params["$where"] = where
+        rows = socrata._get(**params)
         if not rows:
             return
         yield rows
-        last = max(int(x["collision_id"]) for x in rows)
+        last = max(str(x["collision_id"]) for x in rows)
         if len(rows) < PAGE:
             return
 

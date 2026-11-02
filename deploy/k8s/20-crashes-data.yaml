@@ -12,8 +12,11 @@
 #     --from-literal=CRASHES_DB_URL='postgresql://crashes:<pw>@crashes-postgres.crashes.svc.cluster.local:5432/crashes?sslmode=disable'
 #   kubectl -n crashes create secret generic opendata \
 #     --from-literal=OPENDATA_API_KEY_ID='<id>' --from-literal=OPENDATA_API_KEY_SECRET='<secret>'
-#   # one-time full backfill:
+#   # one-time full backfill (also the recipe after a source republish that changes ids —
+#   # TRUNCATE crashes, clusters and null ingest_state.last_crash_date first; ~20 min, so
+#   # raise the job's activeDeadlineSeconds past 1800):
 #   kubectl -n crashes create job crashes-backfill --from=cronjob/crashes-ingest -- python -m crashesweb.ingest backfill
+#   # schema note: crashes.collision_id is TEXT since 2026-11-02 (NYC switched to hash ids on 2026-10-28)
 ---
 apiVersion: v1
 kind: Service
@@ -57,7 +60,7 @@ spec:
             - name: ghcr-pull
           containers:
             - name: ingest
-              image: ghcr.io/kardolus/crashes-web:v15
+              image: ghcr.io/kardolus/crashes-web:v16
               imagePullPolicy: IfNotPresent
               command: ["python", "-m", "crashesweb.ingest", "daily"]
               env:

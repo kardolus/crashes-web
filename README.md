@@ -25,7 +25,14 @@ crashes-postgres  ──read-only SQL──>  crashes-web (Starlette)  ──>  
 ```
 
 - **`ingest.py`** — `python -m crashesweb.ingest {backfill|daily}`. Keyset-paginated
-  pull from Socrata → upsert into `crashes`. Then assigns each geocoded crash a stable
+  pull from Socrata → upsert into `crashes`. `collision_id` is **text** (a 32-hex hash):
+  NYC Open Data republished the dataset on 2026-10-28 with hashes on every row (it had
+  been an integer), so the keyset is lexical and the id is never parsed. A republish like
+  that invalidates every stored id — rebuild instead of delta-pulling:
+  `TRUNCATE crashes, clusters; UPDATE ingest_state SET last_crash_date=NULL, rows_total=0;`
+  then `kubectl -n crashes create job crashes-rebuild --from=cronjob/crashes-ingest --
+  python -m crashesweb.ingest backfill` (~20 min, 2.3M rows; raise the job's
+  `activeDeadlineSeconds` past the CronJob's 1800). Then assigns each geocoded crash a stable
   `cluster_id` via a **fixed ~30 m grid** (EPSG:2263) and rebuilds the `clusters` table
   (centroid + representative cross-street label). A fixed grid is chaining-proof —
   distance-DBSCAN cascaded crashes along busy corridors into one 27k-crash blob — and a
